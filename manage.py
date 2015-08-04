@@ -99,7 +99,7 @@ def _make_requirements(obj):
     return requirements
 
 
-def gen_data(start_year=None, end_year=None, sectors=False):
+def gen_data(start_year=None, end_year=None):
     """Generates historical or current data"""
     end_year = int(end_year or dt.now().year) + 1
     start_year = start_year or end_year - 1
@@ -144,22 +144,18 @@ def gen_data(start_year=None, end_year=None, sectors=False):
                     'funding_type': appeal['type'],
                 }
 
-                if sectors:
-                    url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
-                    r = requests.get(url)
+                yield utils.merge(record, _make_requirements(appeal))
+                url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
+                r = requests.get(url)
 
-                    for cluster in r.json():
-                        additional = _make_requirements(cluster)
-                        additional['cluster'] = cluster['name']
-                        yield utils.merge(record, additional)
-                else:
-                    record.update(_make_requirements(appeal))
-                    yield record
+                for cluster in r.json():
+                    additional_cluster = _make_requirements(cluster)
+                    additional_cluster['cluster'] = cluster['name']
+                    yield utils.merge(record, additional_cluster)
 
 @manager.option('-s', '--start', help='the start year', default=1999)
 @manager.option('-e', '--end', help='the end year', default=None)
-@manager.option('-S', '--sectors', help='add sectors', action='store_true')
-def backfill(start, end, sectors):
+def backfill(start, end):
     """Populates db with historical data"""
     limit = 0
 
@@ -172,7 +168,7 @@ def backfill(start, end, sectors):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(start, end, sectors), chunk_size):
+        for records in utils.chunk(gen_data(start, end), chunk_size):
             count = len(records)
             limit += count
 
@@ -191,8 +187,8 @@ def backfill(start, end, sectors):
             print('Successfully inserted %s records into the database!' % limit)
 
 
-@manager.option('-S', '--sectors', help='add sectors', action='store_true')
-def run(sectors):
+@manager.command
+def run():
     """Populates db with most recent data"""
     limit = 0
 
@@ -205,7 +201,7 @@ def run(sectors):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(sectors=sectors), chunk_size):
+        for records in utils.chunk(gen_data(), chunk_size):
             appeal_ids = [r['appeal_id'] for r in records]
 
             # delete records if already in db
