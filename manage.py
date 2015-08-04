@@ -5,6 +5,7 @@ from __future__ import (
 
 import requests
 import os.path as p
+import itertools as it
 
 from subprocess import call
 from datetime import datetime as dt
@@ -107,13 +108,16 @@ def gen_data(start_year=None, end_year=None):
                 funding = appeal['funding']
                 appeal_id = appeal['id']
 
-                if countries == 'Region':
-                    url = '%s/funding%s?groupby=country&appeal=%s' % (
-                        base, suffix, appeal_id)
-
+                if not countries or countries in ['Region', 'none']:
+                    url = '%s/project/appeal/%s%s' % (base, appeal_id, suffix)
                     r = requests.get(url)
-                    groups = [g['type'] for g in r.json()['grouping']]
-                    countries = '"%s"' % '","'.join(groups)
+                    all_countries = (p['country'] for p in r.json())
+                    country_set = set(it.ifilter(None, all_countries))
+
+                    if country_set:
+                        countries = '"%s"' % '","'.join(country_set)
+                    else:
+                        countries = 'N/A'
 
                 record = {
                     'emergency_id': emergency_id,
