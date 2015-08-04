@@ -80,8 +80,26 @@ def setup():
         cleardb()
         createdb()
 
+def _make_requirements(obj):
+    try:
+        requirement = obj['current_requirements']
+    except KeyError:
+        requirement = obj['current_requirement']
 
-def gen_data(start_year=None, end_year=None):
+
+    funding = obj['funding']
+    coverage = funding / requirement if requirement else 0
+
+    requirements = {
+        'requirement': requirement,
+        'funding': funding,
+        'coverage': coverage,
+    }
+
+    return requirements
+
+
+def gen_data(start_year=None, end_year=None, sectors=False):
     """Generates historical or current data"""
     end_year = int(end_year or dt.now().year) + 1
     start_year = start_year or end_year - 1
@@ -99,13 +117,10 @@ def gen_data(start_year=None, end_year=None):
 
             emergency_items = items(emergencies, app.config['DATA_LOCATION'])
             lookup = {e['id']: e['title'] for e in emergency_items}
-            pprint(lookup)
 
             for appeal in items(appeals, app.config['DATA_LOCATION']):
                 countries = appeal['country']
                 emergency_id = appeal['emergency_id']
-                requirement = appeal['current_requirements']
-                funding = appeal['funding']
                 appeal_id = appeal['id']
 
                 if not countries or countries in ['Region', 'none']:
@@ -126,17 +141,24 @@ def gen_data(start_year=None, end_year=None):
                     'year': appeal['year'],
                     'appeal_id': appeal_id,
                     'appeal_name': appeal['title'],
-                    'requirement': requirement,
-                    'funding': funding,
-                    'coverage': funding / requirement,
                     'funding_type': appeal['type'],
                 }
 
-                yield record
+                if sectors:
+                    url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
+                    r = requests.get(url)
+
+                    for cluster in r.json():
+                        additional = _make_requirements(cluster)
+                        additional['cluster'] = cluster['name']
+                        yield utils.merge(record, additional)
+                else:
+                    record.update(_make_requirements(appeal))
+                    yield record
 
 @manager.option('-s', '--start', help='the start year', default=1999)
 @manager.option('-e', '--end', help='the end year', default=None)
-@manager.option('-S', '--sectors', help='add appeal sectors', default=False)
+@manager.option('-S', '--sectors', help='add sectors', action='store_true')
 def backfill(start, end, sectors):
     """Populates db with historical data"""
     limit = 0
@@ -150,7 +172,7 @@ def backfill(start, end, sectors):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(start, end), chunk_size):
+        for records in utils.chunk(gen_data(start, end, sectors), chunk_size):
             count = len(records)
             limit += count
 
@@ -169,7 +191,7 @@ def backfill(start, end, sectors):
             print('Successfully inserted %s records into the database!' % limit)
 
 
-@manager.option('-S', '--sectors', help='add appeal sectors', default=False)
+@manager.option('-S', '--sectors', help='add sectors', action='store_true')
 def run(sectors):
     """Populates db with most recent data"""
     limit = 0
@@ -183,7 +205,7 @@ def run(sectors):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(), chunk_size):
+        for records in utils.chunk(gen_data(sectors=sectors), chunk_size):
             appeal_ids = [r['appeal_id'] for r in records]
 
             # delete records if already in db

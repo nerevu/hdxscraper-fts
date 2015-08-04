@@ -28,12 +28,13 @@ class Data(db.Model, ValidationMixin):
     emergency_name = db.Column(db.String(32), nullable=False)
     countries = db.Column(db.String(256), nullable=False)
     year = db.Column(db.String(4), nullable=False)
-    appeal_id = db.Column(db.String(16), nullable=False, unique=True)
+    appeal_id = db.Column(db.String(16), nullable=False, index=True)
     appeal_name = db.Column(db.String(32), nullable=False)
     requirement = db.Column(db.Numeric, nullable=False)
     funding = db.Column(db.Numeric, nullable=False)
     coverage = db.Column(db.Numeric, nullable=False)
     funding_type = db.Column(db.String(16), nullable=False)
+    cluster = db.Column(db.String(32), nullable=True)
 
     # validation
     val.validates_constraints()
