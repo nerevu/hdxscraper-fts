@@ -179,12 +179,10 @@ def gen_data(start_year=None, end_year=None, mode=False):
                 else:
                     url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
                     r = requests.get(url)
-                    print(url)
 
                     for cluster in r.json():
                         additional = _make_requirements(cluster)
                         additional['cluster'] = cluster['name']
-                        print('hi')
                         yield utils.merge(record, additional)
 
 @manager.option('-s', '--start', help='the start year', default=1999)
@@ -283,7 +281,6 @@ def populate(dmode):
                     limit, table_name))
 
         if app.config['PROD']:
-            print(app.config)
             scraperwiki.status('ok')
 
 
