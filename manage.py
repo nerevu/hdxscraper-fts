@@ -106,10 +106,10 @@ def _find_countries(countries, url):
     if not countries or countries in ['Region', 'none']:
         r = requests.get(url)
 
-        try:
-            all_countries = (p['country'] for p in r.json())
-        except TypeError:
+        if 'grouping' in r.json():
             all_countries = (p['type'] for p in r.json()['grouping'])
+        else:
+            all_countries = (p['country'] for p in r.json())
 
         country_set = set(it.ifilter(None, all_countries))
 
