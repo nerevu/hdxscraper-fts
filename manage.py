@@ -4,22 +4,24 @@ from __future__ import (
     unicode_literals)
 
 import requests
+import scraperwiki
 import os.path as p
 import itertools as it
 
 from subprocess import call
 from datetime import datetime as dt
 from urllib2 import urlopen
+from functools import partial
 
 from pprint import pprint
 from ijson import items
 from flask import current_app as app
 from flask.ext.script import Manager
 from app import create_app, db, utils
-from app.models import Data
+from app import models
 
 manager = Manager(create_app)
-manager.add_option('-m', '--mode', dest='mode', default='Development')
+manager.add_option('-m', '--mode', default='Development')
 manager.main = manager.run
 
 
@@ -81,30 +83,53 @@ def setup():
         createdb()
 
 def _make_requirements(obj):
-    try:
-        requirement = obj['current_requirements']
-    except KeyError:
-        requirement = obj['current_requirement']
-
-
+    has_requirement = True
     funding = obj['funding']
-    coverage = funding / requirement if requirement else 0
 
-    requirements = {
-        'requirement': requirement,
-        'funding': funding,
-        'coverage': coverage,
-    }
+    if 'current_requirement' in obj or 'current_requirements' in obj:
+        requirement = obj.get(
+            'current_requirements', obj.get('current_requirement'))
+
+        coverage = funding / requirement if requirement else 0
+        requirements = {
+            'requirement': requirement,
+            'funding': funding,
+            'coverage': coverage,
+        }
+    else:
+        requirements = {'funding': funding}
 
     return requirements
 
 
-def gen_data(start_year=None, end_year=None):
+def _find_countries(countries, url):
+    if not countries or countries in ['Region', 'none']:
+        r = requests.get(url)
+
+        try:
+            all_countries = (p['country'] for p in r.json())
+        except TypeError:
+            all_countries = (p['type'] for p in r.json()['grouping'])
+
+        country_set = set(it.ifilter(None, all_countries))
+
+        if country_set:
+            countries = '"%s"' % '","'.join(country_set)
+        else:
+            countries = 'N/A'
+
+    return countries
+
+
+def gen_data(start_year=None, end_year=None, mode=False):
     """Generates historical or current data"""
     end_year = int(end_year or dt.now().year) + 1
     start_year = start_year or end_year - 1
-
     years = range(start_year, end_year)
+
+    appeals_mode = mode.startswith('a')
+    cluster_mode = mode.startswith('c')
+    emergency_mode = mode.startswith('e')
 
     with app.app_context():
         base = app.config['BASE_URL']
@@ -115,119 +140,170 @@ def gen_data(start_year=None, end_year=None):
             emergencies = urlopen('%s/emergency/year/%s%s' % (
                 base, year, suffix))
 
-            emergency_items = items(emergencies, app.config['DATA_LOCATION'])
-            lookup = {e['id']: e['title'] for e in emergency_items}
+            if appeals_mode or cluster_mode:
+                data_items = items(appeals, app.config['DATA_LOCATION'])
+                emergency_items = items(
+                    emergencies, app.config['DATA_LOCATION'])
+                emergency_lookup = {
+                    e['id']: e['title'] for e in emergency_items}
+            else:
+                data_items = items(emergencies, app.config['DATA_LOCATION'])
 
-            for appeal in items(appeals, app.config['DATA_LOCATION']):
-                countries = appeal['country']
-                emergency_id = appeal['emergency_id']
-                appeal_id = appeal['id']
-
-                if not countries or countries in ['Region', 'none']:
+            for item in data_items:
+                if appeals_mode or cluster_mode:
+                    emergency_id = item['emergency_id']
+                    emergency_name = emergency_lookup.get(emergency_id, 'N/A')
+                    appeal_id = item['id']
                     url = '%s/project/appeal/%s%s' % (base, appeal_id, suffix)
-                    r = requests.get(url)
-                    all_countries = (p['country'] for p in r.json())
-                    country_set = set(it.ifilter(None, all_countries))
-
-                    if country_set:
-                        countries = '"%s"' % '","'.join(country_set)
-                    else:
-                        countries = 'N/A'
+                else:
+                    emergency_id = item['id']
+                    url = '%s/funding%s?groupby=country&emergency=%s' % (
+                        base, suffix, emergency_id)
+                    emergency_name = item['title']
 
                 record = {
                     'emergency_id': emergency_id,
-                    'emergency_name': lookup.get(emergency_id, 'N/A'),
-                    'countries': countries,
-                    'year': appeal['year'],
-                    'appeal_id': appeal_id,
-                    'appeal_name': appeal['title'],
-                    'funding_type': appeal['type'],
+                    'emergency_name': emergency_name,
+                    'countries': _find_countries(item['country'], url),
+                    'year': item['year'],
                 }
 
-                yield utils.merge(record, _make_requirements(appeal))
-                url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
-                r = requests.get(url)
+                if appeals_mode or cluster_mode:
+                    record.update({
+                        'appeal_id': appeal_id,
+                        'appeal_name': item['title'],
+                        'funding_type': item['type']})
 
-                for cluster in r.json():
-                    additional_cluster = _make_requirements(cluster)
-                    additional_cluster['cluster'] = cluster['name']
-                    yield utils.merge(record, additional_cluster)
+                if appeals_mode or emergency_mode:
+                    yield utils.merge(record, _make_requirements(item))
+                else:
+                    url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
+                    r = requests.get(url)
+                    print(url)
+
+                    for cluster in r.json():
+                        additional = _make_requirements(cluster)
+                        additional['cluster'] = cluster['name']
+                        print('hi')
+                        yield utils.merge(record, additional)
 
 @manager.option('-s', '--start', help='the start year', default=1999)
 @manager.option('-e', '--end', help='the end year', default=None)
-def backfill(start, end):
+@manager.option(
+    '-d', '--dmode', help='data mode', default='emergency',
+    choices=['emergency', 'appeal', 'cluster'])
+def backfill(start, end, dmode):
     """Populates db with historical data"""
     limit = 0
+    table_name = dmode.capitalize()
+    table = getattr(models, table_name)
 
     with app.app_context():
         row_limit = app.config['ROW_LIMIT']
         chunk_size = min(row_limit or 'inf', app.config['CHUNK_SIZE'])
-        debug = app.config['DEBUG']
-        test = app.config['TESTING']
+        debug, test = app.config['DEBUG'], app.config['TESTING']
 
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(start, end), chunk_size):
+        for records in utils.chunk(gen_data(start, end, dmode), chunk_size):
             count = len(records)
             limit += count
 
             if debug:
-                print('Inserting %s records into the database...' % count)
+                print(
+                    'Inserting %s records into the %s table...' % (
+                        count, table_name))
 
             if test:
                 pprint(records)
 
-            db.engine.execute(Data.__table__.insert(), records)
+            db.engine.execute(table.__table__.insert(), records)
 
             if row_limit and limit >= row_limit:
                 break
 
         if debug:
-            print('Successfully inserted %s records into the database!' % limit)
+            print(
+                'Successfully inserted %s records into the %s table!' % (
+                    limit, table_name))
+
+        if app.config['PROD']:
+            scraperwiki.status('ok')
 
 
-@manager.command
-def run():
+@manager.option(
+    '-d', '--dmode', help='data mode', default='emergency',
+    choices=['emergency', 'appeal', 'cluster'])
+def populate(dmode):
     """Populates db with most recent data"""
     limit = 0
+    table_name = dmode.capitalize()
+    table = getattr(models, table_name)
+    attr = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
 
     with app.app_context():
         row_limit = app.config['ROW_LIMIT']
         chunk_size = min(row_limit or 'inf', app.config['CHUNK_SIZE'])
-        debug = app.config['DEBUG']
-        test = app.config['TESTING']
+        debug, test = app.config['DEBUG'], app.config['TESTING']
 
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(), chunk_size):
-            appeal_ids = [r['appeal_id'] for r in records]
-
+        for records in utils.chunk(gen_data(mode=dmode), chunk_size):
             # delete records if already in db
-            del_count = (
-                Data.query.filter(Data.appeal_id.in_(appeal_ids))
-                    .delete(synchronize_session=False))
+            ids = [r[attr] for r in records]
+            q = table.query.filter(getattr(table, attr).in_(ids))
+            del_count = q.delete(synchronize_session=False)
 
             if debug:
-                print('Deleted %s records from the database...' % del_count)
+                print(
+                    'Deleted %s records from the %s table...' % (
+                        del_count, table_name))
 
             in_count = len(records)
             limit += in_count
 
             if debug:
-                print('Inserting %s records into the database...' % in_count)
+                print(
+                    'Inserting %s records into the %s table...' % (
+                        in_count, table_name))
 
             if test:
                 pprint(records)
 
-            db.engine.execute(Data.__table__.insert(), records)
+            db.engine.execute(table.__table__.insert(), records)
 
             if row_limit and limit >= row_limit:
                 break
 
         if debug:
-            print('Successfully inserted %s records into the database!' % limit)
+            print(
+                'Successfully inserted %s records into the %s table!' % (
+                    limit, table_name))
+
+        if app.config['PROD']:
+            print(app.config)
+            scraperwiki.status('ok')
+
+
+@manager.command
+def init():
+    """Initializes db with historical data"""
+    with app.app_context():
+        cleardb()
+        createdb()
+
+        func = partial(backfill, 1999, None)
+        map(func, ['emergency', 'appeal', 'cluster'])
+
+
+@manager.command
+def run():
+    """Populates all tables in db with most recent data"""
+    with app.test_request_context():
+        map(populate, ['emergency', 'appeal', 'cluster'])
+
 
 if __name__ == '__main__':
     manager.run()
