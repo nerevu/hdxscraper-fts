@@ -12,12 +12,12 @@ check-stage:
 	bin/check-stage
 
 pipme:
-	pip install -r requirements.txt
+	sudo pip install -r requirements.txt
 
 setup:
 	virtualenv venv
 	source venv/bin/activate
-	pipme
+	pip install -r requirements.txt
 	manage -m Scraper setup
 
 require:
