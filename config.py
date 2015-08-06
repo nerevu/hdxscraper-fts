@@ -1,4 +1,4 @@
-from os import environ, path as p
+from os import path as p
 
 # module vars
 _basedir = p.dirname(__file__)
