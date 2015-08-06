@@ -33,6 +33,10 @@ def prompt(ptype):
     return dictionary[ptype].decode('utf-8')
 
 
+def merge(*args):
+    return dict(it.chain.from_iterable(it.imap(dict.iteritems, args)))
+
+
 def flatten_fields(record, key=None):
     try:
         for subkey, value in record.items():

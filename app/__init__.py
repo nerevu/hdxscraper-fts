@@ -27,8 +27,4 @@ def create_app(mode=None):
     else:
         app.config.from_envvar('APP_SETTINGS', silent=True)
 
-    @app.route('/')
-    def home():
-        return 'Welcome to the UN Habitat API Collector!'
-
     return app
