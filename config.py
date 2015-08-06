@@ -12,6 +12,7 @@ class Config(object):
     DATA_LOCATION = 'item'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(_basedir, _db_name)
     PROD = False
+    SW = False
     DEBUG = False
     TESTING = False
     CHUNK_SIZE = 10000
@@ -20,6 +21,7 @@ class Config(object):
 
 class Scraper(Config):
     PROD = True
+    SW = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(_parentdir, _db_name)
 
 

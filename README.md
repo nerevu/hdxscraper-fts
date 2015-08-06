@@ -4,10 +4,11 @@ Collector for the [Financial Tracking Service (FTS) API](https://fts.unocha.org/
 
 ## Setup
 
-    pip install -r requirements.txt
-
 *local*
 
+(You are using a [virtualenv](http://www.virtualenv.org/en/latest/index.html), right?)
+
+    sudo pip install -r requirements.txt
     manage setup
     manage init
 
