@@ -15,10 +15,7 @@ pipme:
 	sudo pip install -r requirements.txt
 
 setup:
-	virtualenv venv
-	source venv/bin/activate
-	pip install -r requirements.txt
-	manage -m Scraper setup
+	bin/setup
 
 require:
 	pip freeze -l | grep -vxFf dev-requirements.txt > requirements.txt
