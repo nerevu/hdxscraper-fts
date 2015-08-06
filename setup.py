@@ -36,15 +36,15 @@ def parse_requirements(filename, parent=None):
 sys.dont_write_bytecode = True
 
 config = {
-    'name': 'Collector Skeleton',
-    'description': 'a global asset allocation tool',
+    'name': 'hdxscraper-fts',
+    'description': 'Collector for the Financial Tracking Service (FTS) API',
     'long_description': open('README.rst', 'rt').read(),
     'author': 'Reuben Cummings',
-    'url': 'https://github.com/reubano/collector',
+    'url': 'https://github.com/reubano/hdxscraper-fts',
     'download_url':
-        'https://github.com/reubano/collector/downloads/collector*.tgz',
+        'https://github.com/reubano/hdxscraper-fts/downloads/hdxscraper-fts*.tgz',
     'author_email': 'reubano@gmail.com',
-    'version': '0.15.0',
+    'version': '0.15.1',
     'install_requires': parse_requirements('requirements.txt'),
     'classifiers': ['Development Status :: 4 - Beta',
         'License :: OSI Approved :: The MIT License (MIT)',

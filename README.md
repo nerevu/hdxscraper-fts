@@ -1,6 +1,6 @@
-## UN Habitat urbaninfo API Collector
+## UN OCHA FTS API Collector
 
-Collector for the [urbaninfo API](http://www.devinfo.org/urbaninfo/libraries/aspx/RegDataQuery.aspx).
+Collector for the [Financial Tracking Service (FTS) API](https://fts.unocha.org/).
 
 ## Setup
 
