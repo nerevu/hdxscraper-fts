@@ -288,9 +288,6 @@ def populate(dmode):
 def init():
     """Initializes db with historical data"""
     with app.app_context():
-        cleardb()
-        createdb()
-
         func = partial(backfill, 1999, None)
         map(func, ['emergency', 'appeal', 'cluster'])
 
