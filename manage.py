@@ -79,11 +79,6 @@ def setup():
     """Removes all content from database and creates new tables"""
 
     with app.app_context():
-        if app.config['SW']:
-            call('virtualenv venv', shell=True)
-            call('source venv/bin/activate', shell=True)
-            pipme()
-
         cleardb()
         createdb()
 
