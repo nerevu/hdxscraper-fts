@@ -79,6 +79,11 @@ def setup():
     """Removes all content from database and creates new tables"""
 
     with app.app_context():
+        if app.config['SW']:
+            call('virtualenv venv', shell=True)
+            call('source venv/bin/activate', shell=True)
+            pipme()
+
         cleardb()
         createdb()
 
@@ -226,7 +231,7 @@ def backfill(start, end, dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
-        if app.config['PROD']:
+        if app.config['SW']:
             scraperwiki.status('ok')
 
 
@@ -280,7 +285,7 @@ def populate(dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
-        if app.config['PROD']:
+        if app.config['SW']:
             scraperwiki.status('ok')
 
 
