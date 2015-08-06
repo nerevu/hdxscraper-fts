@@ -1,6 +1,6 @@
 ## UN OCHA FTS API Collector
 
-Collector for the [UN OCHA FTS API](https://fts.unocha.org/).
+Collector for the [Financial Tracking Service (FTS) API](https://fts.unocha.org/).
 
 ## Setup
 
