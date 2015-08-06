@@ -25,7 +25,7 @@ class Emergency(db.Model, ValidationMixin):
 
     # other keys
     emergency_id = db.Column(
-        db.String(16), nullable=False, unique=True, index=True)
+        db.String(16), nullable=False, index=True)
     emergency_name = db.Column(db.String(32), nullable=False)
     countries = db.Column(db.String(256), nullable=False)
     year = db.Column(db.String(4), nullable=False)
@@ -52,7 +52,7 @@ class Appeal(db.Model, ValidationMixin):
     year = db.Column(db.String(4), nullable=False)
     funding = db.Column(db.Numeric, nullable=False)
     appeal_id = db.Column(
-        db.String(16), nullable=False, unique=True, index=True)
+        db.String(16), nullable=False, index=True)
     appeal_name = db.Column(db.String(32), nullable=False)
     requirement = db.Column(db.Numeric, nullable=False)
     coverage = db.Column(db.Numeric, nullable=False)
