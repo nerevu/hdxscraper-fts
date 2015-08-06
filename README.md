@@ -14,7 +14,7 @@ Collector for the [Financial Tracking Service (FTS) API](https://fts.unocha.org/
 
 *ScraperWiki Box*
 
-    manage -m Scraper setup
+    make setup
     manage -m Scraper init
 
 ## Usage
