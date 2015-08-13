@@ -44,7 +44,7 @@ config = {
     'download_url':
         'https://github.com/reubano/hdxscraper-fts/downloads/hdxscraper-fts*.tgz',
     'author_email': 'reubano@gmail.com',
-    'version': '0.17.2',
+    'version': '0.17.3',
     'install_requires': parse_requirements('requirements.txt'),
     'classifiers': ['Development Status :: 4 - Beta',
         'License :: OSI Approved :: The MIT License (MIT)',
