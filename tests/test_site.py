@@ -18,7 +18,6 @@ def setup_module():
     global tables
     global client
 
-    app, client, jsonx = get_globals()
     keys = [k for k in app.blueprints.keys() if k.endswith('api0')]
     tables = [k.replace('api0', '') for k in keys]
     db.create_all()
