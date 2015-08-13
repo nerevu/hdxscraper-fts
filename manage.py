@@ -3,18 +3,14 @@ from __future__ import (
     absolute_import, division, print_function, with_statement,
     unicode_literals)
 
-import requests
-import scraperwiki
 import os.path as p
 import itertools as it
 
 from subprocess import call
 from datetime import datetime as dt
-from urllib2 import urlopen
 from functools import partial
 
 from pprint import pprint
-from ijson import items
 from flask import current_app as app
 from flask.ext.script import Manager
 from app import create_app, db, utils
@@ -40,7 +36,7 @@ def lint():
 @manager.command
 def pipme():
     """Install requirements.txt"""
-    call('pip install -r requirements.txt', shell=True)
+    call('sudo pip install -r requirements.txt', shell=True)
 
 
 @manager.command
@@ -82,108 +78,6 @@ def setup():
         cleardb()
         createdb()
 
-def _make_requirements(obj):
-    has_requirement = True
-    funding = obj['funding']
-
-    if 'current_requirement' in obj or 'current_requirements' in obj:
-        requirement = obj.get(
-            'current_requirements', obj.get('current_requirement'))
-
-        coverage = funding / requirement if requirement else 0
-        requirements = {
-            'requirement': requirement,
-            'funding': funding,
-            'coverage': coverage,
-        }
-    else:
-        requirements = {'funding': funding}
-
-    return requirements
-
-
-def _find_countries(countries, url):
-    if not countries or countries in ['Region', 'none']:
-        r = requests.get(url)
-
-        if 'grouping' in r.json():
-            all_countries = (p['type'] for p in r.json()['grouping'])
-        else:
-            all_countries = (p['country'] for p in r.json())
-
-        country_set = set(it.ifilter(None, all_countries))
-
-        if country_set:
-            countries = '"%s"' % '","'.join(country_set)
-        else:
-            countries = 'N/A'
-
-    return countries
-
-
-def gen_data(start_year=None, end_year=None, mode=False):
-    """Generates historical or current data"""
-    end_year = int(end_year or dt.now().year) + 1
-    start_year = start_year or end_year - 1
-    years = range(start_year, end_year)
-
-    appeals_mode = mode.startswith('a')
-    cluster_mode = mode.startswith('c')
-    emergency_mode = mode.startswith('e')
-
-    with app.app_context():
-        base = app.config['BASE_URL']
-        suffix = app.config['SUFFIX']
-
-        for year in years:
-            appeals = urlopen('%s/appeal/year/%s%s' % (base, year, suffix))
-            emergencies = urlopen('%s/emergency/year/%s%s' % (
-                base, year, suffix))
-
-            if appeals_mode or cluster_mode:
-                data_items = items(appeals, app.config['DATA_LOCATION'])
-                emergency_items = items(
-                    emergencies, app.config['DATA_LOCATION'])
-                emergency_lookup = {
-                    e['id']: e['title'] for e in emergency_items}
-            else:
-                data_items = items(emergencies, app.config['DATA_LOCATION'])
-
-            for item in data_items:
-                if appeals_mode or cluster_mode:
-                    emergency_id = item['emergency_id']
-                    emergency_name = emergency_lookup.get(emergency_id, 'N/A')
-                    appeal_id = item['id']
-                    url = '%s/project/appeal/%s%s' % (base, appeal_id, suffix)
-                else:
-                    emergency_id = item['id']
-                    url = '%s/funding%s?groupby=country&emergency=%s' % (
-                        base, suffix, emergency_id)
-                    emergency_name = item['title']
-
-                record = {
-                    'emergency_id': emergency_id,
-                    'emergency_name': emergency_name,
-                    'countries': _find_countries(item['country'], url),
-                    'year': item['year'],
-                }
-
-                if appeals_mode or cluster_mode:
-                    record.update({
-                        'appeal_id': appeal_id,
-                        'appeal_name': item['title'],
-                        'funding_type': item['type']})
-
-                if appeals_mode or emergency_mode:
-                    yield utils.merge(record, _make_requirements(item))
-                else:
-                    url = '%s/cluster/appeal/%s%s' % (base, appeal_id, suffix)
-                    r = requests.get(url)
-
-                    for cluster in r.json():
-                        additional = _make_requirements(cluster)
-                        additional['cluster'] = cluster['name']
-                        yield utils.merge(record, additional)
 
 @manager.option('-s', '--start', help='the start year', default=1999)
 @manager.option('-e', '--end', help='the end year', default=None)
@@ -204,7 +98,8 @@ def backfill(start, end, dmode):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(start, end, dmode), chunk_size):
+        args = [app.config, start, end, dmode]
+        for records in utils.chunk(utils.gen_data(*args), chunk_size):
             count = len(records)
             limit += count
 
@@ -226,9 +121,6 @@ def backfill(start, end, dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
-        if app.config['SW']:
-            scraperwiki.status('ok')
-
 
 @manager.option(
     '-d', '--dmode', help='data mode', default='emergency',
@@ -248,11 +140,16 @@ def populate(dmode):
         if test:
             createdb()
 
-        for records in utils.chunk(gen_data(mode=dmode), chunk_size):
+        data = utils.gen_data(app.config, mode=dmode)
+        for records in utils.chunk(data, chunk_size):
             # delete records if already in db
             ids = [r[attr] for r in records]
             q = table.query.filter(getattr(table, attr).in_(ids))
             del_count = q.delete(synchronize_session=False)
+
+            # necessary to prevent `sqlalchemy.exc.OperationalError:
+            # (sqlite3.OperationalError) database is locked` error
+            db.session.commit()
 
             if debug:
                 print(
@@ -280,24 +177,21 @@ def populate(dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
-        if app.config['SW']:
-            scraperwiki.status('ok')
-
-
 @manager.command
 def init():
     """Initializes db with historical data"""
     with app.app_context():
-        func = partial(backfill, 1999, None)
-        map(func, ['emergency', 'appeal', 'cluster'])
+        func = partial(backfill, 1999, dt.now().year)
+        job = partial(map, func, ['emergency', 'appeal', 'cluster'])
+        utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
 
 
 @manager.command
 def run():
     """Populates all tables in db with most recent data"""
-    with app.test_request_context():
-        map(populate, ['emergency', 'appeal', 'cluster'])
-
+    with app.app_context():
+        job = partial(map, populate, ['emergency', 'appeal', 'cluster'])
+        utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
 
 if __name__ == '__main__':
     manager.run()

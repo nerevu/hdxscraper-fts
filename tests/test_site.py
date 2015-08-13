@@ -7,18 +7,18 @@
 """
 import nose.tools as nt
 
-from . import APIHelper, get_globals, loads, dumps, err
-from pprint import pprint
-from app import create_app, db
+from . import APIHelper, app, client
+from app import db
+
+tables = []
 
 
 def setup_module():
-    """site initialization"""
     global initialized
     global tables
     global client
 
-    app, client, jsonx = get_globals()
+    """site initialization"""
     keys = [k for k in app.blueprints.keys() if k.endswith('api0')]
     tables = [k.replace('api0', '') for k in keys]
     db.create_all()

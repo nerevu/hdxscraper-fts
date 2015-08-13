@@ -6,12 +6,15 @@
     Provides application unit tests
 """
 
-from sys import stderr
-
 from flask.json import loads, dumps
-from app import create_app, db
+from app import create_app
 
 initialized = False
+app = None
+client = None
+jsonx = None
+endpoint = None
+base = None
 
 
 def setup_package():
@@ -45,16 +48,11 @@ def teardown_package():
     print('Test Package Teardown\n')
 
 
-def get_globals():
-    global app
-    global client
-    global jsonx
-
-    return app, client, jsonx
-
-
 class APIHelper:
-    json = 'application/json'
+    def __init__(self):
+        global client
+        self.client = client
+        self.json = 'application/json'
 
     def get_data(self, table, id=None, query=None):
         # returns status_code 200
@@ -65,22 +63,22 @@ class APIHelper:
             url = base + table
 
         if query:
-            r = client.get(url, content_type=self.json, q=query)
+            r = self.client.get(url, content_type=self.json, q=query)
         else:
-            r = client.get(url, content_type=self.json)
+            r = self.client.get(url, content_type=self.json)
 
         return r
 
     def delete_data(self, table, id):
         # returns status_code 204
         url = '%s/%s/%s' % (endpoint, table, id)
-        r = client.delete(url, content_type=self.json)
+        r = self.client.delete(url, content_type=self.json)
         return r
 
     def post_data(self, data, table):
         # returns status_code 201
         url = base + table
-        r = client.post(url, data=dumps(data), content_type=self.json)
+        r = self.client.post(url, data=dumps(data), content_type=self.json)
         return r
 
     def patch_data(self, data, table, id=None, query=None):
@@ -91,10 +89,10 @@ class APIHelper:
             url = base + table
 
         if query:
-            r = client.patch(
+            r = self.client.patch(
                 url, data=dumps(data), content_type=self.json, q=query)
         else:
-            r = client.patch(url, data=dumps(data), content_type=self.json)
+            r = self.client.patch(url, data=dumps(data), content_type=self.json)
 
         return r
 
@@ -107,4 +105,3 @@ class APIHelper:
         r = self.get_data(table, id)
         loaded = loads(r.data)
         return loaded['type']['id']
-
