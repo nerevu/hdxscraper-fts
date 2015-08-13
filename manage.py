@@ -183,7 +183,7 @@ def init():
     with app.app_context():
         func = partial(backfill, 1999, dt.now().year)
         job = partial(map, func, ['emergency', 'appeal', 'cluster'])
-        utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
+        utils.run_or_schedule(job, False, utils.exception_handler)
 
 
 @manager.command
