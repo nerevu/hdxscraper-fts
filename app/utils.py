@@ -22,7 +22,6 @@ import itertools as it
 import scraperwiki
 
 from os import environ, path as p
-from functools import wraps
 from datetime import datetime as dt
 from email.mime.text import MIMEText
 
@@ -97,7 +96,6 @@ def send_email(_to, _from=None, subject=None, text=None):
 
 
 def exception_handler(func):
-    @wraps(func)
     def wrapper(*args, **kwargs):
         try:
             func(*args, **kwargs)
