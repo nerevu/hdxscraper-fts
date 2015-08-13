@@ -112,6 +112,8 @@ def exception_handler(func):
 
 
 def run_or_schedule(job, schedule=False, exception_handler=None):
+    job()
+
     if schedule:
         job = exception_handler(job) if exception_handler else job
         sch.every(1).day.at(_schedule_time).do(job)
@@ -119,8 +121,6 @@ def run_or_schedule(job, schedule=False, exception_handler=None):
         while True:
             sch.run_pending()
             time.sleep(1)
-    else:
-        job()
 
 
 def gen_data(config, start_year=None, end_year=None, mode=False):
