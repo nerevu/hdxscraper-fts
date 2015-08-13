@@ -36,7 +36,7 @@ def lint():
 @manager.command
 def pipme():
     """Install requirements.txt"""
-    call('pip install -r requirements.txt', shell=True)
+    call('sudo pip install -r requirements.txt', shell=True)
 
 
 @manager.command
@@ -146,6 +146,10 @@ def populate(dmode):
             ids = [r[attr] for r in records]
             q = table.query.filter(getattr(table, attr).in_(ids))
             del_count = q.delete(synchronize_session=False)
+
+            # necessary to prevent `sqlalchemy.exc.OperationalError:
+            # (sqlite3.OperationalError) database is locked` error
+            db.session.commit()
 
             if debug:
                 print(
