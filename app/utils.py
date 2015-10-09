@@ -37,6 +37,7 @@ _recipient = 'reubano@gmail.com'
 
 logger = logging.getLogger('hdxscraper-fts')
 underscorify = lambda fields: [slugify(f, separator='_') for f in fields]
+logging.basicConfig()
 
 
 def _make_requirements(obj):
