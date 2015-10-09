@@ -89,8 +89,8 @@ def send_email(_to, _from=None, subject=None, text=None):
     msg = MIMEText(text)
     msg['Subject'], msg['From'], msg['To'] = subject, _from, _to
 
-    # Send the message via our own SMTP server, but don't
-    # include the envelope header.
+    # Send the message via our own SMTP server, but don't include the envelope
+    # header.
     s = smtplib.SMTP('localhost')
     s.sendmail(_from, [_to], msg.as_string())
     s.quit()
