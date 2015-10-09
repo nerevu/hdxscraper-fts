@@ -5,6 +5,7 @@ _basedir = p.dirname(__file__)
 _parentdir = p.dirname(_basedir)
 _db_name = 'scraperwiki.sqlite'
 
+
 # configuration
 class Config(object):
     BASE_URL = 'http://fts.unocha.org/api/v1'

@@ -4,7 +4,6 @@ from __future__ import (
     unicode_literals)
 
 import os.path as p
-import itertools as it
 
 from subprocess import call
 from datetime import datetime as dt
@@ -19,6 +18,8 @@ manager = Manager(create_app)
 manager.add_option('-m', '--mode', default='Development')
 manager.main = manager.run
 
+_basedir = p.dirname(__file__)
+
 
 @manager.command
 def check():
@@ -29,7 +30,7 @@ def check():
 @manager.command
 def lint():
     """Check style with flake8"""
-    call('flake8 app tests', shell=True)
+    call('flake8', shell=True)
 
 
 @manager.command
@@ -176,6 +177,7 @@ def populate(dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
+
 @manager.command
 def init():
     """Initializes db with historical data"""
@@ -191,6 +193,7 @@ def run():
     with app.app_context():
         job = partial(map, populate, ['emergency', 'appeal', 'cluster'])
         utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
+
 
 if __name__ == '__main__':
     manager.run()
