@@ -13,8 +13,7 @@ from functools import partial
 from pprint import pprint
 from flask import current_app as app
 from flask.ext.script import Manager
-from app import create_app, db, utils
-from app import models
+from app import create_app, db, utils, models
 
 manager = Manager(create_app)
 manager.add_option('-m', '--mode', default='Development')
@@ -130,7 +129,7 @@ def populate(dmode):
     limit = 0
     table_name = dmode.capitalize()
     table = getattr(models, table_name)
-    attr = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
+    rid = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
 
     with app.app_context():
         row_limit = app.config['ROW_LIMIT']
@@ -143,8 +142,8 @@ def populate(dmode):
         data = utils.gen_data(app.config, mode=dmode)
         for records in utils.chunk(data, chunk_size):
             # delete records if already in db
-            ids = [r[attr] for r in records]
-            q = table.query.filter(getattr(table, attr).in_(ids))
+            ids = [r[rid] for r in records]
+            q = table.query.filter(getattr(table, rid).in_(ids))
             del_count = q.delete(synchronize_session=False)
 
             # necessary to prevent `sqlalchemy.exc.OperationalError:
