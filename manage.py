@@ -12,6 +12,8 @@ from functools import partial
 from pprint import pprint
 from flask import current_app as app
 from flask.ext.script import Manager
+from tabutils.fntools import chunk
+
 from app import create_app, db, utils, models
 
 manager = Manager(create_app)
@@ -99,7 +101,7 @@ def backfill(start, end, dmode):
             createdb()
 
         args = [app.config, start, end, dmode]
-        for records in utils.chunk(utils.gen_data(*args), chunk_size):
+        for records in chunk(utils.gen_data(*args), chunk_size):
             count = len(records)
             limit += count
 
@@ -141,7 +143,7 @@ def populate(dmode):
             createdb()
 
         data = utils.gen_data(app.config, mode=dmode)
-        for records in utils.chunk(data, chunk_size):
+        for records in chunk(data, chunk_size):
             # delete records if already in db
             ids = [r[rid] for r in records]
             q = table.query.filter(getattr(table, rid).in_(ids))
