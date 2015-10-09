@@ -18,7 +18,6 @@ db = SQLAlchemy()
 
 
 def create_app(mode=None):
-    # Create webapp instance
     app = Flask(__name__)
     db.init_app(app)
 

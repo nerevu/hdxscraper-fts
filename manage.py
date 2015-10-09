@@ -4,7 +4,6 @@ from __future__ import (
     unicode_literals)
 
 import os.path as p
-import itertools as it
 
 from subprocess import call
 from datetime import datetime as dt
@@ -13,12 +12,15 @@ from functools import partial
 from pprint import pprint
 from flask import current_app as app
 from flask.ext.script import Manager
-from app import create_app, db, utils
-from app import models
+from tabutils.fntools import chunk
+
+from app import create_app, db, utils, models
 
 manager = Manager(create_app)
 manager.add_option('-m', '--mode', default='Development')
 manager.main = manager.run
+
+_basedir = p.dirname(__file__)
 
 
 @manager.command
@@ -30,7 +32,7 @@ def check():
 @manager.command
 def lint():
     """Check style with flake8"""
-    call('flake8 app tests', shell=True)
+    call('flake8', shell=True)
 
 
 @manager.command
@@ -99,7 +101,7 @@ def backfill(start, end, dmode):
             createdb()
 
         args = [app.config, start, end, dmode]
-        for records in utils.chunk(utils.gen_data(*args), chunk_size):
+        for records in chunk(utils.gen_data(*args), chunk_size):
             count = len(records)
             limit += count
 
@@ -130,7 +132,7 @@ def populate(dmode):
     limit = 0
     table_name = dmode.capitalize()
     table = getattr(models, table_name)
-    attr = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
+    rid = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
 
     with app.app_context():
         row_limit = app.config['ROW_LIMIT']
@@ -141,10 +143,10 @@ def populate(dmode):
             createdb()
 
         data = utils.gen_data(app.config, mode=dmode)
-        for records in utils.chunk(data, chunk_size):
+        for records in chunk(data, chunk_size):
             # delete records if already in db
-            ids = [r[attr] for r in records]
-            q = table.query.filter(getattr(table, attr).in_(ids))
+            ids = [r[rid] for r in records]
+            q = table.query.filter(getattr(table, rid).in_(ids))
             del_count = q.delete(synchronize_session=False)
 
             # necessary to prevent `sqlalchemy.exc.OperationalError:
@@ -177,6 +179,7 @@ def populate(dmode):
                 'Successfully inserted %s records into the %s table!' % (
                     limit, table_name))
 
+
 @manager.command
 def init():
     """Initializes db with historical data"""
@@ -192,6 +195,7 @@ def run():
     with app.app_context():
         job = partial(map, populate, ['emergency', 'appeal', 'cluster'])
         utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
+
 
 if __name__ == '__main__':
     manager.run()

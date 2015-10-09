@@ -27,8 +27,7 @@ from email.mime.text import MIMEText
 
 from urllib2 import urlopen
 from ijson import items
-from termcolor import colored as color
-from slugify import slugify
+from tabutils.process import merge
 
 _basedir = p.dirname(__file__)
 _parentdir = p.dirname(_basedir)
@@ -36,7 +35,7 @@ _schedule_time = '10:30'
 _recipient = 'reubano@gmail.com'
 
 logger = logging.getLogger('hdxscraper-fts')
-underscorify = lambda fields: [slugify(f, separator='_') for f in fields]
+logging.basicConfig()
 
 
 def _make_requirements(obj):
@@ -88,8 +87,8 @@ def send_email(_to, _from=None, subject=None, text=None):
     msg = MIMEText(text)
     msg['Subject'], msg['From'], msg['To'] = subject, _from, _to
 
-    # Send the message via our own SMTP server, but don't
-    # include the envelope header.
+    # Send the message via our own SMTP server, but don't include the envelope
+    # header.
     s = smtplib.SMTP('localhost')
     s.sendmail(_from, [_to], msg.as_string())
     s.quit()
@@ -185,59 +184,3 @@ def gen_data(config, start_year=None, end_year=None, mode=False):
                     additional = _make_requirements(cluster)
                     additional['cluster'] = cluster['name']
                     yield merge(record, additional)
-
-
-def prompt(ptype):
-    dictionary = {
-        'bullet': color(" →", "blue", attrs=['bold']),
-        'error': color(" ERROR:", "red", attrs=['bold']),
-        'success': color(" SUCCESS:", "green", attrs=['bold']),
-        'warn': color(" WARN:", "yellow", attrs=['bold'])
-    }
-
-    return dictionary[ptype].decode('utf-8')
-
-
-def merge(*args):
-    return dict(it.chain.from_iterable(it.imap(dict.iteritems, args)))
-
-
-def flatten_fields(record, key=None):
-    try:
-        for subkey, value in record.items():
-            newkey = '%s_%s' % (key, subkey) if key else subkey
-
-            for tup in flatten_fields(value, newkey):
-                yield tup
-    except AttributeError:
-        yield (key, record)
-
-
-def chunk(iterable, chunksize=0, start=0, stop=None):
-    """Groups data into fixed-length chunks.
-    http://stackoverflow.com/a/22919323/408556
-
-    Args:
-        iterable (iterable): Content to group into chunks.
-        chunksize (Optional[int]): Number of chunks to include in a group (
-            default: 0, i.e., all).
-
-        start (Optional[int]): Starting item (zero indexed, default: 0).
-        stop (Optional[int]): Ending item (zero indexed).
-
-    Returns:
-        Iter[List]: Chunked content.
-
-    Examples:
-        >>> chunk([1, 2, 3, 4, 5, 6], 2, 1).next()
-        [2, 3]
-    """
-    i = it.islice(iter(iterable), start, stop)
-
-    if chunksize:
-        generator = (list(it.islice(i, chunksize)) for _ in it.count())
-        chunked = it.takewhile(bool, generator)
-    else:
-        chunked = [list(i)]
-
-    return chunked

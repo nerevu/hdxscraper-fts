@@ -16,11 +16,11 @@
           }
           $('#init').on('click', function() {
             $(this).addClass('loading').html('Initializing database…')
-            scraperwiki.exec('manage -m Scraper init', execSuccess)
+            scraperwiki.exec('python manage.py -m Scraper init', execSuccess)
           })
           $('#run').on('click', function() {
             $(this).addClass('loading').html('Running collector…')
-            scraperwiki.exec('manage -m Scraper run', execSuccess)
+            scraperwiki.exec('python manage.py -m Scraper run', execSuccess)
           })
       })
     </script>

@@ -5,17 +5,18 @@ _basedir = p.dirname(__file__)
 _parentdir = p.dirname(_basedir)
 _db_name = 'scraperwiki.sqlite'
 
+
 # configuration
 class Config(object):
     BASE_URL = 'http://fts.unocha.org/api/v1'
     SUFFIX = '.json'
     DATA_LOCATION = 'item'
     SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(_basedir, _db_name)
-    PROD = False
     SW = False
     DEBUG = False
     TESTING = False
-    CHUNK_SIZE = 10000
+    PROD = False
+    CHUNK_SIZE = 2 ** 14
     ROW_LIMIT = None
 
 
