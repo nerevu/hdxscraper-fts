@@ -1,0 +1,25 @@
+#!/usr/bin/env bash -u
+# Creates private datasets in CKAN
+# usage bin/upload
+
+if [ $1 == 'prod' ]; then
+  url=`printenv CKAN_PROD_URL`
+else
+  url=`printenv CKAN_REMOTE_URL`
+fi
+
+oid="fb7c2910-6080-4b66-8b4f-0be9b6dc4d8e"
+base="https://ds-ec2.scraperwiki.com/md49udj/xljsoqqazmdfr3i/cgi-bin/csv"
+
+ckanny pk.create -s FTS -t 'FTS Clusters' -f "${base}/cluster.csv" -r "$url" "$oid"
+ckanny pk.create -s FTS -t 'FTS Appeals' -f "${base}/appeal.csv" -r "$url" "$oid"
+ckanny pk.create -s FTS -t 'FTS Emergencies' -f "${base}/emergency.csv" -r "$url" "$oid"
+
+{
+  read
+  while read -r line || [[ -n "$line" ]]; do
+    IFS=','
+    row=($line)
+    ckanny fs.upload -p "${row[1]}" -n "${row[4]}" -r "$url" "${row[3]}"
+  done
+} < "datasets/tables.csv"
