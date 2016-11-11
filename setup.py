@@ -1,70 +1,50 @@
 import sys
-
-from os import path as p
+import app
+import pkutils
 
 try:
     from setuptools import setup, find_packages
 except ImportError:
     from distutils.core import setup, find_packages
 
-
-def read(filename, parent=None):
-    parent = (parent or __file__)
-
-    try:
-        with open(p.join(p.dirname(parent), filename)) as f:
-            return f.read()
-    except IOError:
-        return ''
-
-
-def parse_requirements(filename, parent=None):
-    parent = (parent or __file__)
-    filepath = p.join(p.dirname(parent), filename)
-    content = read(filename, parent)
-
-    for line_number, line in enumerate(content.splitlines(), 1):
-        candidate = line.strip()
-
-        if candidate.startswith('-r'):
-            for item in parse_requirements(candidate[2:].strip(), filepath):
-                yield item
-        else:
-            yield candidate
-
-# Avoid byte-compiling the shipped template
 sys.dont_write_bytecode = True
+requirements = list(pkutils.parse_requirements('requirements.txt'))
+dependencies = list(pkutils.parse_requirements('requirements.txt', dep=True))
+dev_requirements = list(pkutils.parse_requirements('dev-requirements.txt'))
+readme = pkutils.read('README.md')
+license = app.__license__
+name = app.__title__
 gh = 'https://github.com/reubano'
-project = 'hdxscraper-fts'
 
-config = {
-    'description': 'Collector for the Financial Tracking Service (FTS) API',
-    'name': project,
-    'long_description': open('README.rst', 'rt').read(),
-    'author': 'Reuben Cummings',
-    'url': '%s/%s' % (gh, project),
-    'download_url': '%s/%s/downloads/%s*.tgz' % (gh, project, project),
-    'author_email': 'reubano@gmail.com',
-    'version': '0.18.0',
-    'install_requires': parse_requirements('requirements.txt'),
-    'classifiers': [
+setup(
+    name=name,
+    version=app.__version__,
+    description=app.__description__,
+    long_description=readme,
+    author=app.__author__,
+    author_email=app.__email__,
+    url='%s/%s' % (gh, name),
+    download_url='%s/%s/downloads/%s*.tgz' % (gh, name, name),
+    include_package_data=True,
+    install_requires=requirements,
+    dependency_links=dependencies,
+    tests_require=dev_requirements,
+    classifiers=[
+        pkutils.LICENSES[license],
         'Development Status :: 4 - Beta',
-        'License :: OSI Approved :: The MIT License (MIT)',
+        'Natural Language :: English',
+        'Programming Language :: Python :: 2',
+        'Programming Language :: Python :: 2.7',
         'Environment :: Web Environment',
         'Intended Audience :: Developers',
         'Operating System :: MacOS :: MacOS X',
         'Operating System :: Microsoft :: Windows',
         'Operating System :: Microsoft :: POSIX'
     ],
-    'keywords': 'api',
-    'type': 'api',
-    'packages': find_packages(exclude=['tests']),
-    'package_data': {},
-    'include_package_data': True,
-    'zip_safe': False,
-    'license': 'MIT',
-    'platforms': ['MacOS X', 'Windows', 'Linux'],
-    'include_package_data': True
-}
-
-setup(**config)
+    keywords=[name, 'scraperwiki', 'api'],
+    packages=find_packages(exclude=['tests']),
+    package_data={},
+    zip_safe=False,
+    license=license,
+    platforms=['MacOS X', 'Windows', 'Linux'],
+)
