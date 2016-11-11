@@ -4,17 +4,18 @@ from __future__ import (
     unicode_literals)
 
 import os.path as p
+import swutils
+import config
 
 from subprocess import call
 from datetime import datetime as dt
 from functools import partial
 
-from pprint import pprint
 from flask import current_app as app
 from flask.ext.script import Manager
-from tabutils.fntools import chunk
+from tabutils.process import merge
 
-from app import create_app, db, utils, models
+from app import create_app, create_db, utils, models, __title__
 
 manager = Manager(create_app)
 manager.add_option('-m', '--mode', default='Development')
@@ -57,7 +58,6 @@ def test():
 @manager.command
 def createdb():
     """Creates database if it doesn't already exist"""
-
     with app.app_context():
         db.create_all()
         print('Database created')
@@ -66,7 +66,6 @@ def createdb():
 @manager.command
 def cleardb():
     """Removes all content from database"""
-
     with app.app_context():
         db.drop_all()
         print('Database cleared')
@@ -75,117 +74,19 @@ def cleardb():
 @manager.command
 def setup():
     """Removes all content from database and creates new tables"""
-
     with app.app_context():
         cleardb()
         createdb()
 
 
 @manager.option('-s', '--start', help='the start year', default=1999)
-@manager.option('-e', '--end', help='the end year', default=None)
-@manager.option(
-    '-d', '--dmode', help='data mode', default='emergency',
-    choices=['emergency', 'appeal', 'cluster'])
-def backfill(start, end, dmode):
-    """Populates db with historical data"""
-    limit = 0
-    table_name = dmode.capitalize()
-    table = getattr(models, table_name)
-
-    with app.app_context():
-        row_limit = app.config['ROW_LIMIT']
-        chunk_size = min(row_limit or 'inf', app.config['CHUNK_SIZE'])
-        debug, test = app.config['DEBUG'], app.config['TESTING']
-
-        if test:
-            createdb()
-
-        args = [app.config, start, end, dmode]
-        for records in chunk(utils.gen_data(*args), chunk_size):
-            count = len(records)
-            limit += count
-
-            if debug:
-                print(
-                    'Inserting %s records into the %s table...' % (
-                        count, table_name))
-
-            if test:
-                pprint(records)
-
-            db.engine.execute(table.__table__.insert(), records)
-
-            if row_limit and limit >= row_limit:
-                break
-
-        if debug:
-            print(
-                'Successfully inserted %s records into the %s table!' % (
-                    limit, table_name))
-
-
-@manager.option(
-    '-d', '--dmode', help='data mode', default='emergency',
-    choices=['emergency', 'appeal', 'cluster'])
-def populate(dmode):
-    """Populates db with most recent data"""
-    limit = 0
-    table_name = dmode.capitalize()
-    table = getattr(models, table_name)
-    rid = 'emergency_id' if dmode.startswith('e') else 'appeal_id'
-
-    with app.app_context():
-        row_limit = app.config['ROW_LIMIT']
-        chunk_size = min(row_limit or 'inf', app.config['CHUNK_SIZE'])
-        debug, test = app.config['DEBUG'], app.config['TESTING']
-
-        if test:
-            createdb()
-
-        data = utils.gen_data(app.config, mode=dmode)
-        for records in chunk(data, chunk_size):
-            # delete records if already in db
-            ids = [r[rid] for r in records]
-            q = table.query.filter(getattr(table, rid).in_(ids))
-            del_count = q.delete(synchronize_session=False)
-
-            # necessary to prevent `sqlalchemy.exc.OperationalError:
-            # (sqlite3.OperationalError) database is locked` error
-            db.session.commit()
-
-            if debug:
-                print(
-                    'Deleted %s records from the %s table...' % (
-                        del_count, table_name))
-
-            in_count = len(records)
-            limit += in_count
-
-            if debug:
-                print(
-                    'Inserting %s records into the %s table...' % (
-                        in_count, table_name))
-
-            if test:
-                pprint(records)
-
-            db.engine.execute(table.__table__.insert(), records)
-
-            if row_limit and limit >= row_limit:
-                break
-
-        if debug:
-            print(
-                'Successfully inserted %s records into the %s table!' % (
-                    limit, table_name))
-
-
-@manager.command
-def init():
+@manager.option('-e', '--end', help='the end year', default=dt.now().year)
+def init(start, end):
     """Initializes db with historical data"""
     with app.app_context():
-        func = partial(backfill, 1999, dt.now().year)
-        job = partial(map, func, ['emergency', 'appeal', 'cluster'])
+        extra = {'models': models, 'end': end, 'start': start}
+        kwargs = merge([app.config, extra])
+        job = partial(swutils.populate, utils.gen_data, db.engine, **kwargs)
         utils.run_or_schedule(job, False, utils.exception_handler)
 
 
@@ -193,9 +94,18 @@ def init():
 def run():
     """Populates all tables in db with most recent data"""
     with app.app_context():
-        job = partial(map, populate, ['emergency', 'appeal', 'cluster'])
-        utils.run_or_schedule(job, app.config['SW'], utils.exception_handler)
+        args = (config.RECIPIENT, app.config.get('LOGFILE'), __title__)
+        exception_handler = swutils.ExceptionHandler(*args).handler
+        kwargs = merge([app.config, {'models': models}])
+        job = partial(swutils.populate, utils.gen_data, db.engine, **kwargs)
+        swutils.run_or_schedule(job, app.config['SW'], exception_handler)
 
+
+@manager.option(
+    '-s', '--stag', help='upload to staging site', action='store_true')
+def upload(stag=False):
+    """Run nose tests"""
+    call([p.join(_basedir, 'bin', 'upload'), 'stag' if stag else 'prod'])
 
 if __name__ == '__main__':
     manager.run()

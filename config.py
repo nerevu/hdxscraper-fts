@@ -1,17 +1,35 @@
+# -*- coding: utf-8 -*-
+# vim: sw=4:ts=4:expandtab
+
+"""
+config
+~~~~~~
+
+Provides app configuration settings
+"""
+
+from __future__ import (
+    absolute_import, division, print_function, with_statement,
+    unicode_literals)
+
 from os import path as p
 
-# module vars
-_basedir = p.dirname(__file__)
-_parentdir = p.dirname(_basedir)
-_db_name = 'scraperwiki.sqlite'
+BASEDIR = p.dirname(__file__)
+PARENTDIR = p.dirname(BASEDIR)
+DB_NAME = 'scraperwiki.sqlite'
+RECIPIENT = 'reubano@gmail.com'
 
 
-# configuration
 class Config(object):
     BASE_URL = 'http://fts.unocha.org/api/v1'
     SUFFIX = '.json'
-    DATA_LOCATION = 'item'
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(_basedir, _db_name)
+    TABLES = [
+        {'name': 'emergency', 'rid': 'emergency_id', 'location': 'item'},
+        {'name': 'appeal', 'rid': 'appeal_id', 'location': 'item'},
+        {'name': 'cluster', 'rid': 'appeal_id', 'location': 'item'}]
+
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(BASEDIR, DB_NAME)
+    LOGFILE = p.join(BASEDIR, 'http', 'log.txt')
     SW = False
     DEBUG = False
     TESTING = False
@@ -23,7 +41,8 @@ class Config(object):
 class Scraper(Config):
     PROD = True
     SW = True
-    SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(_parentdir, _db_name)
+    SQLALCHEMY_DATABASE_URI = 'sqlite:///%s' % p.join(PARENTDIR, DB_NAME)
+    LOGFILE = p.join(PARENTDIR, 'http', 'log.txt')
 
 
 class Production(Config):

@@ -13,29 +13,13 @@ from __future__ import (
     absolute_import, division, print_function, with_statement,
     unicode_literals)
 
-import time
-import schedule as sch
-import smtplib
-import logging
 import requests
 import itertools as it
-import scraperwiki
-
-from os import environ, path as p
-from datetime import datetime as dt
-from email.mime.text import MIMEText
 
 from urllib2 import urlopen
+from datetime import datetime as dt
 from ijson import items
 from tabutils.process import merge
-
-_basedir = p.dirname(__file__)
-_parentdir = p.dirname(_basedir)
-_schedule_time = '10:30'
-_recipient = 'reubano@gmail.com'
-
-logger = logging.getLogger('hdxscraper-fts')
-logging.basicConfig()
 
 
 def _make_requirements(obj):
@@ -64,9 +48,9 @@ def _find_countries(countries, url):
         r = requests.get(url)
 
         if 'grouping' in r.json():
-            all_countries = (p['type'] for p in r.json()['grouping'])
+            all_countries = (g['type'] for g in r.json()['grouping'])
         else:
-            all_countries = (p['country'] for p in r.json())
+            all_countries = (g['country'] for g in r.json())
 
         func = lambda x: x not in black_list
         country_set = set(it.ifilter(func, all_countries))
@@ -79,61 +63,18 @@ def _find_countries(countries, url):
     return countries
 
 
-def send_email(_to, _from=None, subject=None, text=None):
-    user = environ.get('user')
-    _from = _from or '%s@scraperwiki.com' % user
-    subject = subject or 'scraperwiki box %s failed' % user
-    text = text or 'https://scraperwiki.com/dataset/%s' % user
-    msg = MIMEText(text)
-    msg['Subject'], msg['From'], msg['To'] = subject, _from, _to
-
-    # Send the message via our own SMTP server, but don't include the envelope
-    # header.
-    s = smtplib.SMTP('localhost')
-    s.sendmail(_from, [_to], msg.as_string())
-    s.quit()
-
-
-def exception_handler(func):
-    def wrapper(*args, **kwargs):
-        try:
-            func(*args, **kwargs)
-        except Exception as e:
-            logger.exception(str(e))
-            scraperwiki.status('error', 'Error collecting data')
-
-            with open(p.join(_parentdir, 'http', 'log.txt'), 'rb') as f:
-                send_email(_recipient, text=f.read())
-        else:
-            scraperwiki.status('ok')
-
-    return wrapper
-
-
-def run_or_schedule(job, schedule=False, exception_handler=None):
-    job()
-
-    if schedule:
-        job = exception_handler(job) if exception_handler else job
-        sch.every(1).day.at(_schedule_time).do(job)
-
-        while True:
-            sch.run_pending()
-            time.sleep(1)
-
-
-def gen_data(config, start_year=None, end_year=None, mode=False):
+def gen_data(start_year=None, end_year=None, mode=False, **kwargs):
     """Generates historical or current data"""
     end_year = int(end_year or dt.now().year) + 1
     start_year = start_year or end_year - 1
     years = range(start_year, end_year)
 
-    appeals_mode = mode.startswith('a')
-    cluster_mode = mode.startswith('c')
-    emergency_mode = mode.startswith('e')
+    appeals_mode = mode.startswith('A')
+    cluster_mode = mode.startswith('C')
+    emergency_mode = mode.startswith('E')
 
-    base = config['BASE_URL']
-    suffix = config['SUFFIX']
+    base = kwargs['BASE_URL']
+    suffix = kwargs['SUFFIX']
 
     for year in years:
         appeals = urlopen('%s/appeal/year/%s%s' % (base, year, suffix))
@@ -141,13 +82,13 @@ def gen_data(config, start_year=None, end_year=None, mode=False):
             base, year, suffix))
 
         if appeals_mode or cluster_mode:
-            data_items = items(appeals, config['DATA_LOCATION'])
+            data_items = items(appeals, kwargs['DATA_LOCATION'])
             emergency_items = items(
-                emergencies, config['DATA_LOCATION'])
+                emergencies, kwargs['DATA_LOCATION'])
             emergency_lookup = {
                 e['id']: e['title'] for e in emergency_items}
         else:
-            data_items = items(emergencies, config['DATA_LOCATION'])
+            data_items = items(emergencies, kwargs['DATA_LOCATION'])
 
         for item in data_items:
             if appeals_mode or cluster_mode:
